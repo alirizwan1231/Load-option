@@ -275,6 +275,11 @@
       }
       .ticket-notes .nl { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.2em; }
       .ticket-notes[hidden] { display: none; }
+      .ticket-load {
+        border-top: 1px dashed #d5d8dd; padding: 0.75rem 1rem; font-size: 0.875rem; color: var(--ticket-ink); margin: 0;
+      }
+      .ticket-load .nl { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.2em; color: var(--ticket-dim); }
+      .ticket-load[hidden] { display: none; }
 
       .text-label {
         font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500;
@@ -378,6 +383,40 @@
                 <input class="input" id="customTruckType" type="text" placeholder="e.g. Gooseneck, Sprinter Van, RGN…" maxlength="48" autocomplete="off" aria-label="Custom truck type" />
               </label>
               <p class="hint" id="customTruckHint" hidden>Type the exact name — it will show on the ticket and in the copied text.</p>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>Load details</h2>
+            <div class="stack">
+              <div class="grid2">
+                <label class="field">
+                  <span>Weight capacity (lbs)</span>
+                  <input class="input mono" id="loadWeight" type="text" inputmode="decimal" placeholder="42,000" autocomplete="off" aria-label="Weight carrying capacity in pounds" />
+                </label>
+                <label class="field">
+                  <span>Commodity type</span>
+                  <input class="input" id="commodity" type="text" placeholder="e.g. General freight" autocomplete="off" list="commodityList" aria-label="Commodity type" />
+                  <datalist id="commodityList">
+                    <option value="General freight"></option>
+                    <option value="Auto parts"></option>
+                    <option value="Building materials"></option>
+                    <option value="Lumber"></option>
+                    <option value="Steel / metal products"></option>
+                    <option value="Machinery"></option>
+                    <option value="Produce"></option>
+                    <option value="Frozen food"></option>
+                    <option value="Dry goods / groceries"></option>
+                    <option value="Beverages"></option>
+                    <option value="Paper products"></option>
+                    <option value="Packaging materials"></option>
+                    <option value="Electronics"></option>
+                    <option value="Furniture / household goods"></option>
+                    <option value="Consumer goods"></option>
+                  </datalist>
+                </label>
+              </div>
+              <p class="hint">Both are optional — when filled, they show on the ticket, in the copied text, the PNG and saved loads.</p>
             </div>
           </section>
 
@@ -562,6 +601,9 @@
                 </label>
               </div>
               <p class="hint" id="routeStatus" role="status">Enter both ZIPs and road miles fill in automatically. Type miles + one rate — the other rate calculates itself.</p>
+              <div>
+                <button type="button" class="btn-small" id="recalcBtn" style="color:var(--text);font-weight:500" disabled>Recalculate road miles</button>
+              </div>
               <label class="field">
                 <span>Notes (optional)</span>
                 <input class="input" id="notes" type="text" placeholder="e.g. FCFS, tarps required, no touch freight" aria-label="Notes" />
@@ -607,6 +649,7 @@
               <div><p class="sl">DEADHEAD</p><p class="sv" id="tkDh">—</p></div>
               <div><p class="sl">RATE / MI</p><p class="sv" id="tkRpm">—</p></div>
             </div>
+            <p class="ticket-load" id="tkLoad" hidden><span class="nl">Load — </span><span id="tkLoadText"></span></p>
             <p class="ticket-notes" id="tkNotes" hidden><span class="nl">Notes — </span><span id="tkNotesText"></span></p>
           </div>
 
@@ -657,13 +700,13 @@
 
       function $(id) { return document.getElementById(id); }
       var els = {};
-      ["truckType","customTruckWrap","customTruckType","customTruckHint","puDate","puWindow","puZip","puLookupHint","puCity","puState",
+      ["truckType","customTruckWrap","customTruckType","customTruckHint","loadWeight","commodity","puDate","puWindow","puZip","puLookupHint","puCity","puState",
        "presChipRow","presChipText","presNoneHint","presCity","presState","nearbyBtn","nearbyNeedZip","nearbyError","nearbyList","exactCityBtn","exactCityName","exactCityZip","nearbyScroll","nearbyEmpty",
        "doDate","doWindow","modeZipBtn","modeCityBtn","doZipPane","doCityPane","doZip","doLookupHint","doCity","doState",
        "statePicker","statePickerBtn","statePickerLabel","statePickerPanel","stateSearch","stateList",
        "cityPickStateFirst","citiesLoading","citiesFailed","citiesFailedText","citySelectWrap","cityFilter","citySelect","citySelectLabel","cityFilterEmpty","citySelectedNote","cityPickHint",
-       "loadedMiles","deadhead","ratePerMile","totalRate","routeStatus","notes",
-       "tkTruck","tkTotalWrap","tkTotal","tkPuWhen","tkPuCity","tkPuZip","tkDoWhen","tkDoCity","tkDoZip","tkMiles","tkDh","tkRpm","tkNotes","tkNotesText",
+       "loadedMiles","deadhead","ratePerMile","totalRate","routeStatus","recalcBtn","notes",
+       "tkTruck","tkTotalWrap","tkTotal","tkPuWhen","tkPuCity","tkPuZip","tkDoWhen","tkDoCity","tkDoZip","tkMiles","tkDh","tkRpm","tkLoad","tkLoadText","tkNotes","tkNotesText",
        "shareText","copyBtn","copyLabel","waLink","pngBtn","pngLabel","saveBtn","saveLabel","recentList","toast","clearBtn","presClearBtn","citiesRetryBtn"
       ].forEach(function (id) { els[id] = $(id); });
 
@@ -730,7 +773,7 @@
           if (!res.ok) throw new Error("zipdata http " + res.status);
           return res.text();
         }).then(function (text) {
-          var byZip = new Map(), byState = new Map(), rows = [];
+          var byZip = new Map(), byState = new Map(), rows = [], cityAgg = new Map();
           text.split(/\r?\n/).forEach(function (line) {
             if (!line) return;
             var p = line.split(",");
@@ -744,17 +787,45 @@
             if (!sm) { sm = new Map(); byState.set(p[2], sm); }
             var key = p[1].toLowerCase();
             if (!sm.has(key)) sm.set(key, { city: p[1], state: p[2], zip: p[0] });
+            /* accumulate every ZIP of each city so the city's centre point
+               (and the ZIP nearest it) can be computed below */
+            var aggKey = p[2] + "|" + key;
+            var agg = cityAgg.get(aggKey);
+            if (!agg) { agg = { sumLat: 0, sumLng: 0, recs: [] }; cityAgg.set(aggKey, agg); }
+            agg.sumLat += lat; agg.sumLng += lng; agg.recs.push(rec);
           });
           if (byZip.size < 1000) throw new Error("zipdata too small");
+          /* For each city, store its CENTRE coordinates and the ZIP nearest
+             that centre. Routing to a city's centre — the way Google Maps
+             pins a city name — instead of whichever ZIP happens to be listed
+             first for it (often at the edge of a big city) removes the
+             10–30 mi error that showed up on by-city drop-offs. */
+          byState.forEach(function (sm, st) {
+            sm.forEach(function (entry, key) {
+              var agg = cityAgg.get(st + "|" + key);
+              if (!agg || !agg.recs.length) return;
+              var cLat = agg.sumLat / agg.recs.length, cLng = agg.sumLng / agg.recs.length;
+              var bestRec = agg.recs[0], bestD = Infinity;
+              agg.recs.forEach(function (r) {
+                var d = haversineMi(cLat, cLng, r.lat, r.lng);
+                if (d < bestD) { bestD = d; bestRec = r; }
+              });
+              entry.zip = bestRec.zip; entry.lat = cLat; entry.lng = cLng;
+            });
+          });
           ZIPDB.byZip = byZip; ZIPDB.byState = byState; ZIPDB.rows = rows; ZIPDB.failed = false;
           return true;
-        }).catch(function () { ZIPDB.failed = true; return false; });
+        }).catch(function () {
+          /* do NOT cache the failure: the next lookup must retry the fetch,
+             otherwise one slow first load breaks ZIP fill until a refresh */
+          ZIPDB.failed = true; ZIPDB.promise = null; return false;
+        });
         return ZIPDB.promise;
       }
       function retryZipDb() { if (ZIPDB.failed) { ZIPDB.promise = null; ZIPDB.failed = false; } }
 
       /* =============== form state =============== */
-      var EMPTY_FORM = { truckType: "Dry Van", customTruckType: "", puZip: "", puCity: "", puState: "", puDate: "", puWindow: "",
+      var EMPTY_FORM = { truckType: "Dry Van", customTruckType: "", loadWeight: "", commodity: "", puZip: "", puCity: "", puState: "", puDate: "", puWindow: "",
         doZip: "", doCity: "", doState: "", doDate: "", doWindow: "", presCity: "", presState: "",
         loadedMiles: "", deadhead: "", ratePerMile: "", totalRate: "", notes: "" };
       var form = Object.assign({}, EMPTY_FORM);
@@ -781,7 +852,7 @@
         return placeLine(form.puCity, form.puState, form.puZip);
       }
       function nums() {
-        return { miles: parseNum(form.loadedMiles), deadhead: parseNum(form.deadhead), rpm: parseNum(form.ratePerMile), total: parseNum(form.totalRate) };
+        return { miles: parseNum(form.loadedMiles), deadhead: parseNum(form.deadhead), rpm: parseNum(form.ratePerMile), total: parseNum(form.totalRate), weight: parseNum(form.loadWeight) };
       }
       function buildShareText() {
         /* Clean plain-text format — NO asterisks or markdown symbols, so the
@@ -806,6 +877,11 @@
           placeLine(form.doCity, form.doState, form.doZip),
           doWhen
         ];
+        var loadLines = [];
+        if (n.weight != null) loadLines.push("Weight: " + fmtNum(n.weight) + " lbs");
+        else if (String(form.loadWeight || "").trim()) loadLines.push("Weight: " + String(form.loadWeight).trim());
+        if (form.commodity.trim()) loadLines.push("Commodity: " + form.commodity.trim());
+        if (loadLines.length) lines.push("", loadLines.join("\n"));
         var specs = [];
         if (n.miles != null) specs.push("Loaded Miles: " + fmtNum(n.miles) + " mi");
         if (n.deadhead != null) specs.push("Deadhead: " + fmtNum(n.deadhead) + " mi");
@@ -847,10 +923,10 @@
       function renderRouteStatus() {
         var el = els.routeStatus;
         if (routeState.kind === "loading") el.textContent = "Calculating road miles " + form.puZip + " → " + form.doZip + "…";
-        else if (routeState.kind === "done") el.textContent = "Auto: " + fmtNum(routeState.miles) + " road miles" + (routeState.durationMinutes != null ? " · ~" + fmtDuration(routeState.durationMinutes) + " drive" : "") + " — edit the miles if your routing differs.";
+        else if (routeState.kind === "done") el.textContent = "Auto: " + fmtNum(routeState.miles) + " road miles" + (routeState.durationMinutes != null ? " · ~" + fmtDuration(routeState.durationMinutes) + " drive" : "") + " — routed ZIP-centre to ZIP-centre. Google may differ by a few miles if it pins a different spot in the city; tap Recalculate if it looks off, or edit the miles.";
         else if (routeState.kind === "estimate") el.textContent = routeState.pending
           ? "Filled an estimated " + fmtNum(routeState.miles) + " mi right away — checking the exact road miles…"
-          : "Routing service unreachable — filled an estimated " + fmtNum(routeState.miles) + " mi (straight-line × 1.27). Edit the miles if your routing differs.";
+          : "Routing service unreachable — filled an estimated " + fmtNum(routeState.miles) + " mi (from straight-line distance). Edit the miles if your routing differs.";
         else if (routeState.kind === "error") el.textContent = "Road miles couldn't be calculated for these ZIPs — check both ZIPs, or type the miles in manually.";
         else if (routeState.kind === "manual") el.textContent = "Manual miles — change either ZIP to recalculate automatically.";
         else el.textContent = "Enter both ZIPs and road miles fill in automatically. Type miles + one rate — the other rate calculates itself.";
@@ -867,6 +943,12 @@
         els.tkMiles.textContent = n.miles != null ? fmtNum(n.miles) + " MI" : "—";
         els.tkDh.textContent = n.deadhead != null ? fmtNum(n.deadhead) + " MI" : "—";
         els.tkRpm.textContent = n.rpm != null ? fmtRate(n.rpm) : "—";
+        var loadParts = [];
+        if (n.weight != null) loadParts.push("Weight: " + fmtNum(n.weight) + " lbs");
+        else if (String(form.loadWeight || "").trim()) loadParts.push("Weight: " + String(form.loadWeight).trim());
+        if (form.commodity.trim()) loadParts.push("Commodity: " + form.commodity.trim());
+        if (loadParts.length) { els.tkLoad.hidden = false; els.tkLoadText.textContent = loadParts.join("  ·  "); }
+        else els.tkLoad.hidden = true;
         if (form.notes.trim()) { els.tkNotes.hidden = false; els.tkNotesText.textContent = form.notes.trim(); }
         else els.tkNotes.hidden = true;
         var text = buildShareText();
@@ -884,6 +966,7 @@
             ? "No presented city yet — the text will show " + (form.puCity + ", " + form.puState + " " + form.puZip).trim() + " until you pick one."
             : "No presented city yet — the text will show the pickup city & ZIP until you pick one.";
         }
+        els.recalcBtn.disabled = !(/^\d{5}$/.test(form.puZip) && /^\d{5}$/.test(form.doZip)) || routeState.kind === "loading";
         els.nearbyBtn.disabled = !/^\d{5}$/.test(form.puZip) || nearbyState.kind === "loading";
         els.nearbyBtn.textContent = nearbyState.kind === "loading" ? "Searching cities within 30 mi…" : "Find cities within 30 mi of pickup";
         els.nearbyNeedZip.hidden = /^\d{5}$/.test(form.puZip);
@@ -895,6 +978,7 @@
       function syncInputs() {
         els.truckType.value = form.truckType;
         els.customTruckType.value = form.customTruckType || "";
+        els.loadWeight.value = form.loadWeight; els.commodity.value = form.commodity;
         var isCustom = form.truckType === CUSTOM_TRUCK;
         els.customTruckWrap.hidden = !isCustom;
         els.customTruckHint.hidden = !isCustom;
@@ -996,36 +1080,56 @@
           return fetchZipGeoApi(zip);
         });
         geoCache.set(zip, p);
-        /* never cache a failure — the next attempt should retry for real */
-        p.catch(function () { if (geoCache.get(zip) === p) geoCache.delete(zip); });
+        /* never cache a failure OR an empty result — a ZIP that comes back
+           "not found" because the database hadn't loaded (or an API hiccup)
+           must be retried on the next attempt, not stuck until refresh */
+        p.then(function (geo) {
+          if (!geo && geoCache.get(zip) === p) geoCache.delete(zip);
+        }, function () { if (geoCache.get(zip) === p) geoCache.delete(zip); });
         return p;
       }
       function makeZipLookup(getZip, hintEl, apply) {
-        var appliedZip = "", timer = null, status = "idle";
+        var timer = null, status = "idle", token = 0;
         function setHint() {
           if (status === "loading") { hintEl.hidden = false; hintEl.className = "hint"; hintEl.textContent = "Looking up city & state…"; }
           else if (status === "notfound") { hintEl.hidden = false; hintEl.className = "warn"; hintEl.textContent = "ZIP not found — check the code, or type the city & state below."; }
-          else if (status === "failed") { hintEl.hidden = false; hintEl.className = "warn"; hintEl.textContent = "City lookup failed — connection problem, not a wrong ZIP. Delete a digit and retype the ZIP to retry, or type the city & state below."; }
+          else if (status === "failed") { hintEl.hidden = false; hintEl.className = "warn"; hintEl.textContent = "City lookup failed — connection problem, not a wrong ZIP. It retries on its own; or type the city & state below."; }
           else hintEl.hidden = true;
+        }
+        function attempt(zip, attemptNo) {
+          var my = ++token;
+          status = "loading"; setHint();
+          resolveZipGeo(zip).then(function (geo) {
+            if (my !== token || getZip() !== zip) return;
+            if (geo) { status = "found"; setHint(); apply(geo.city, geo.state.toUpperCase()); }
+            else if (attemptNo < 1 && ZIPDB.failed) {
+              /* the built-in database failed to load a moment ago — reload
+                 it and try once more instead of declaring the ZIP invalid */
+              retryZipDb();
+              setTimeout(function () { if (getZip() === zip) attempt(zip, attemptNo + 1); }, 400);
+            }
+            else { status = "notfound"; setHint(); }
+          }, function () {
+            if (my !== token || getZip() !== zip) return;
+            /* transient failure (slow network, API hiccup): retry by itself
+               a couple of times — the user should never need to refresh */
+            if (attemptNo < 2) {
+              setTimeout(function () { if (getZip() === zip) attempt(zip, attemptNo + 1); }, 700 * (attemptNo + 1));
+            } else { status = "failed"; setHint(); }
+          });
         }
         return function () {
           var zip = getZip();
-          if (!/^\d{5}$/.test(zip)) { status = "idle"; setHint(); return; }
-          if (appliedZip === zip) { status = "found"; setHint(); return; }
+          if (!/^\d{5}$/.test(zip)) { token++; status = "idle"; setHint(); return; }
+          /* No "already applied" shortcut here: it used to skip the fill
+             whenever the same ZIP was typed again after the form was
+             cleared or a saved load was reused, leaving city & state blank
+             until a page refresh. Resolving again is instant from the
+             cache / built-in database, and re-applying is harmless. */
+          if (ZIPDB.byZip) { attempt(zip, 0); return; }
           status = "loading"; setHint();
           if (timer) clearTimeout(timer);
-          timer = setTimeout(function () {
-            resolveZipGeo(zip).then(function (geo) {
-              if (getZip() !== zip) return;
-              if (geo) { appliedZip = zip; status = "found"; apply(geo.city, geo.state.toUpperCase()); }
-              else status = "notfound";
-              setHint();
-            }, function () {
-              if (getZip() !== zip) return;
-              status = "failed";
-              setHint();
-            });
-          }, 350);
+          timer = setTimeout(function () { attempt(zip, 0); }, 250);
         };
       }
       var puLookup = makeZipLookup(function () { return form.puZip; }, els.puLookupHint, function (city, state) {
@@ -1038,10 +1142,23 @@
       /* =============== auto road miles (OSRM) =============== */
       var routeTimer = null;
       var routeCache = new Map();
+      /* When the drop-off is picked BY CITY NAME, route to that city's centre
+         point (computed from all of its ZIPs) instead of re-resolving its one
+         representative ZIP — this matches how Google Maps pins a city name. */
+      var doCoords = null;
+      /* Road miles ÷ straight-line miles is not one fixed number: short hops
+         wind around more, long highway runs are straighter. A flat ×1.27
+         over-stated long hauls and under-stated short ones. */
+      function circuityFactor(straightMi) {
+        if (straightMi < 80) return 1.38;
+        if (straightMi < 250) return 1.30;
+        if (straightMi < 600) return 1.26;
+        return 1.21;
+      }
       function checkRoute() {
         var pairOk = /^\d{5}$/.test(form.puZip) && /^\d{5}$/.test(form.doZip);
         if (!pairOk) { if (routeState.kind !== "manual") routeState = { kind: "idle" }; renderRouteStatus(); return; }
-        var pairKey = form.puZip + "->" + form.doZip;
+        var pairKey = form.puZip + "->" + form.doZip + ((doCoords && doMode === "city") ? "@" + doCoords.lat.toFixed(3) + "," + doCoords.lng.toFixed(3) : "");
         if (milesManual) return;
         if (autoPair === pairKey) return;
         var cached = routeCache.get(pairKey);
@@ -1055,14 +1172,18 @@
         if (routeTimer) clearTimeout(routeTimer);
         var fromZip = form.puZip, toZip = form.doZip;
         routeTimer = setTimeout(function () {
-          Promise.all([resolveZipGeo(fromZip), resolveZipGeo(toZip)]).then(function (res) {
+          var toPromise = (doCoords && doMode === "city")
+            ? Promise.resolve({ city: form.doCity, state: form.doState, lat: doCoords.lat, lng: doCoords.lng })
+            : resolveZipGeo(toZip);
+          Promise.all([resolveZipGeo(fromZip), toPromise]).then(function (res) {
             var from = res[0], to = res[1];
             if (form.puZip !== fromZip || form.doZip !== toZip) return;
             if (!from || !to) { routeState = { kind: "error" }; renderRouteStatus(); return; }
             /* Instant first answer: fill a straight-line estimate from the built-in
                coordinates right away, so miles, RPM and total react the moment a
                city/ZIP is picked — the exact road miles replace it when OSRM replies. */
-            var est = Math.round(haversineMi(from.lat, from.lng, to.lat, to.lng) * 1.27);
+            var straight = haversineMi(from.lat, from.lng, to.lat, to.lng);
+            var est = Math.round(straight * circuityFactor(straight));
             if (!milesManual && est > 0) {
               routeState = { kind: "estimate", miles: est, pending: true };
               applyMiles(String(est));
@@ -1292,6 +1413,7 @@
       }
       function pickCityFromList(entry) {
         milesManual = false;
+        doCoords = (typeof entry.lat === "number" && typeof entry.lng === "number") ? { lat: entry.lat, lng: entry.lng } : null;
         update({ doCity: entry.city, doState: entry.state, doZip: entry.zip });
         els.cityFilter.value = "";
         renderCityPane();
@@ -1299,6 +1421,7 @@
       }
       function switchDoMode(mode) {
         doMode = mode;
+        if (mode === "zip") doCoords = null;
         if (mode === "city") {
           var known = US_STATES.some(function (e) { return e[0] === form.doState; });
           if (form.doState && known) cityState = form.doState;
@@ -1328,6 +1451,8 @@
           createdAt: new Date().toISOString(),
           truckType: effectiveTruckType(),
           customTruckType: form.truckType === CUSTOM_TRUCK ? form.customTruckType.trim() : "",
+          loadWeight: n.weight != null ? n.weight : (String(form.loadWeight || "").trim() || null),
+          commodity: form.commodity.trim(),
           pickupZip: form.puZip.trim(), pickupCity: form.puCity.trim(), pickupState: form.puState.trim().toUpperCase(),
           pickupDate: form.puDate, pickupWindow: form.puWindow.trim(),
           dropoffZip: form.doZip.trim(), dropoffCity: form.doCity.trim(), dropoffState: form.doState.trim().toUpperCase(),
@@ -1356,6 +1481,8 @@
         form = {
           truckType: savedCustom ? CUSTOM_TRUCK : savedTruck,
           customTruckType: savedCustom,
+          loadWeight: load.loadWeight == null ? "" : String(load.loadWeight),
+          commodity: load.commodity || "",
           puZip: load.pickupZip || "", puCity: load.pickupCity || "", puState: load.pickupState || "",
           puDate: load.pickupDate || "", puWindow: load.pickupWindow || "",
           doZip: load.dropoffZip || "", doCity: load.dropoffCity || "", doState: load.dropoffState || "",
@@ -1366,6 +1493,7 @@
           notes: load.notes || ""
         };
         doMode = load.dropoffMode === "city" ? "city" : "zip";
+        doCoords = null;
         cityState = load.dropoffState || "";
         els.cityFilter.value = "";
         nearbyState = { kind: "idle" };
@@ -1413,6 +1541,8 @@
           var r2 = document.createElement("p"); r2.className = "r2";
           var meta = load.totalRate != null ? fmtMoney(load.totalRate) : "No rate";
           if (load.ratePerMile != null) meta += " · " + fmtRate(load.ratePerMile) + "/mi";
+          if (load.loadWeight != null && load.loadWeight !== "") meta += " · " + (typeof load.loadWeight === "number" ? fmtNum(load.loadWeight) + " lbs" : load.loadWeight);
+          if (load.commodity) meta += " · " + load.commodity;
           if (load.presentedDeadhead != null) meta += " · DH " + fmtNum(load.presentedDeadhead) + " mi";
           if (load.pickupDate) meta += " · PU " + fmtDate(load.pickupDate);
           meta += " · saved " + savedWhen;
@@ -1480,9 +1610,16 @@
           var scratch = document.createElement("canvas").getContext("2d");
           var notes = form.notes.trim(), noteLines = [];
           if (scratch && notes) { scratch.font = "400 16px Archivo, sans-serif"; noteLines = wrapText(scratch, notes, W - 56); }
+          var loadPartsPng = [];
+          if (n.weight != null) loadPartsPng.push("Weight: " + fmtNum(n.weight) + " lbs");
+          else if (String(form.loadWeight || "").trim()) loadPartsPng.push("Weight: " + String(form.loadWeight).trim());
+          if (form.commodity.trim()) loadPartsPng.push("Commodity: " + form.commodity.trim());
+          var loadLines = [];
+          if (scratch && loadPartsPng.length) { scratch.font = "400 16px Archivo, sans-serif"; loadLines = wrapText(scratch, loadPartsPng.join("  ·  "), W - 56); }
           var PU_Y = 122, DO_Y = 264, BAND_Y = 362, BAND_H = 88;
-          var NOTES_Y = BAND_Y + BAND_H + 30;
-          var H = BAND_Y + BAND_H + (noteLines.length ? 34 + noteLines.length * 23 : 0) + 26;
+          var LOAD_Y = BAND_Y + BAND_H + 30;
+          var NOTES_Y = BAND_Y + BAND_H + (loadLines.length ? 34 + loadLines.length * 23 : 0) + 30;
+          var H = BAND_Y + BAND_H + (loadLines.length ? 34 + loadLines.length * 23 : 0) + (noteLines.length ? 34 + noteLines.length * 23 : 0) + 26;
           var canvas = document.createElement("canvas");
           canvas.width = W * S; canvas.height = H * S;
           var c = canvas.getContext("2d");
@@ -1552,6 +1689,12 @@
             c.fillText(pair[1], cx, BAND_Y + 64);
             c.textAlign = "left";
           });
+          if (loadLines.length) {
+            c.fillStyle = DIM; c.font = '500 11px "IBM Plex Mono", monospace';
+            c.fillText("L O A D", 28, LOAD_Y);
+            c.fillStyle = INK; c.font = "400 16px Archivo, sans-serif";
+            loadLines.forEach(function (line, i) { c.fillText(line, 28, LOAD_Y + 26 + i * 23); });
+          }
           if (noteLines.length) {
             c.fillStyle = DIM; c.font = '500 11px "IBM Plex Mono", monospace';
             c.fillText("N O T E S", 28, NOTES_Y);
@@ -1596,6 +1739,8 @@
         if (els.truckType.value === CUSTOM_TRUCK) els.customTruckType.focus();
       });
       els.customTruckType.addEventListener("input", function () { form.customTruckType = els.customTruckType.value; renderPreview(); });
+      els.loadWeight.addEventListener("input", function () { form.loadWeight = els.loadWeight.value; renderPreview(); });
+      els.commodity.addEventListener("input", function () { form.commodity = els.commodity.value; renderPreview(); });
       els.puDate.addEventListener("input", function () { form.puDate = els.puDate.value; renderPreview(); });
       els.puWindow.addEventListener("input", function () { form.puWindow = els.puWindow.value; renderPreview(); });
       els.doDate.addEventListener("input", function () { form.doDate = els.doDate.value; renderPreview(); });
@@ -1623,6 +1768,7 @@
       });
       els.doZip.addEventListener("input", function () {
         milesManual = false;
+        doCoords = null;
         form.doZip = els.doZip.value.replace(/[^\d]/g, "");
         els.doZip.value = form.doZip;
         doLookup(); checkRoute(); renderPreview();
@@ -1664,12 +1810,24 @@
       });
       els.citiesRetryBtn.addEventListener("click", function () { retryZipDb(); citiesCache.delete(cityState); loadStateCities(); });
 
+      els.recalcBtn.addEventListener("click", function () {
+        if (!/^\d{5}$/.test(form.puZip) || !/^\d{5}$/.test(form.doZip)) return;
+        /* force a fresh routing call: drop the cached route and any manual /
+           auto markers so the miles are recomputed from the current ZIPs */
+        routeCache.delete(form.puZip + "->" + form.doZip);
+        routeCache.delete(form.puZip + "->" + form.doZip + ((doCoords && doMode === "city") ? "@" + doCoords.lat.toFixed(3) + "," + doCoords.lng.toFixed(3) : ""));
+        milesManual = false;
+        autoPair = "";
+        routeState = { kind: "idle" };
+        checkRoute();
+        renderPreview();
+      });
       els.copyBtn.addEventListener("click", copyText);
       els.pngBtn.addEventListener("click", downloadPng);
       els.saveBtn.addEventListener("click", saveLoad);
       els.clearBtn.addEventListener("click", function () {
         form = Object.assign({}, EMPTY_FORM);
-        doMode = "zip"; cityState = ""; stateCities = null; citiesStatus = "idle";
+        doMode = "zip"; doCoords = null; cityState = ""; stateCities = null; citiesStatus = "idle";
         els.cityFilter.value = "";
         nearbyState = { kind: "idle" }; routeState = { kind: "idle" };
         milesManual = false; autoPair = ""; lastRateEdit = "rpm";
@@ -1679,7 +1837,11 @@
       });
 
       /* =============== init =============== */
-      loadZipDb(); /* warm the built-in ZIP database so the first lookup is instant */
+      /* Warm the built-in ZIP database; once it lands, re-run the lookups and
+         the route check — if the user already typed a ZIP while it was still
+         loading and the fill didn't happen, it completes now on its own
+         instead of needing a page refresh. */
+      loadZipDb().then(function () { puLookup(); doLookup(); checkRoute(); });
       syncInputs();
       renderStatePicker();
       renderPreview();
