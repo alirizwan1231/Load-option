@@ -741,22 +741,36 @@
         return { miles: parseNum(form.loadedMiles), deadhead: parseNum(form.deadhead), rpm: parseNum(form.ratePerMile), total: parseNum(form.totalRate) };
       }
       function buildShareText() {
+        /* Dispatch-board format: framed header, one block per stop (place first,
+           then date), a specs block, and the money line set apart at the end.
+           *...* renders bold in WhatsApp and stays readable as plain text anywhere else. */
         var n = nums();
-        var groups = [form.truckType.toUpperCase() + " — LOAD OPTION"];
-        var puWhen = [fmtDate(form.puDate) || "TBD", form.puWindow.trim()].filter(Boolean).join(" · ");
-        var doWhen = [fmtDate(form.doDate) || "TBD", form.doWindow.trim()].filter(Boolean).join(" · ");
-        groups.push("PU: " + puWhen + " — " + presentedPlace() + "\nDROP: " + doWhen + " — " + placeLine(form.doCity, form.doState, form.doZip));
-        var detail = [], bits = [];
-        if (n.miles != null) bits.push("Loaded Miles: " + fmtNum(n.miles) + " mi");
-        if (n.deadhead != null) bits.push("Deadhead: " + fmtNum(n.deadhead) + " mi");
-        if (bits.length) detail.push(bits.join(" | "));
-        var rateBits = [];
-        if (n.rpm != null) rateBits.push("Rate: " + fmtRate(n.rpm) + "/mi");
-        if (n.total != null) rateBits.push("Total: " + fmtMoney(n.total));
-        if (rateBits.length) detail.push(rateBits.join(" | "));
-        if (detail.length) groups.push(detail.join("\n"));
-        if (form.notes.trim()) groups.push("Notes: " + form.notes.trim());
-        return groups.join("\n\n");
+        var rule = "━━━━━━━━━━━━━━━━━━━";
+        var puWhen = [fmtDate(form.puDate) || "Date TBD", form.puWindow.trim()].filter(Boolean).join(" · ");
+        var doWhen = [fmtDate(form.doDate) || "Date TBD", form.doWindow.trim()].filter(Boolean).join(" · ");
+        var lines = [
+          rule,
+          "🚛 *" + form.truckType.toUpperCase() + "* — LOAD OPTION",
+          rule,
+          "",
+          "📍 *PICKUP*",
+          presentedPlace(),
+          puWhen,
+          "",
+          "🏁 *DROP-OFF*",
+          placeLine(form.doCity, form.doState, form.doZip),
+          doWhen
+        ];
+        var specs = [];
+        if (n.miles != null) specs.push("Loaded Miles: " + fmtNum(n.miles) + " mi");
+        if (n.deadhead != null) specs.push("Deadhead: " + fmtNum(n.deadhead) + " mi");
+        if (specs.length) lines.push("", specs.join("\n"));
+        var money = [];
+        if (n.rpm != null) money.push("Rate: " + fmtRate(n.rpm) + "/mi");
+        if (n.total != null) money.push("*Total: " + fmtMoney(n.total) + "*");
+        if (money.length) lines.push("", money.join("\n"));
+        if (form.notes.trim()) lines.push("", "📝 Notes: " + form.notes.trim());
+        return lines.join("\n");
       }
 
       var toastTimer = null;
