@@ -731,6 +731,7 @@
       var citiesCache = new Map();
       var nearbyCache = new Map();
       var citiesToken = 0;
+      var cityOptionsKey = "";
 
       function presentedPlace() {
         if (form.presCity.trim()) return [form.presCity.trim(), form.presState.trim()].filter(Boolean).join(", ");
@@ -787,7 +788,9 @@
         var el = els.routeStatus;
         if (routeState.kind === "loading") el.textContent = "Calculating road miles " + form.puZip + " → " + form.doZip + "…";
         else if (routeState.kind === "done") el.textContent = "Auto: " + fmtNum(routeState.miles) + " road miles" + (routeState.durationMinutes != null ? " · ~" + fmtDuration(routeState.durationMinutes) + " drive" : "") + " — edit the miles if your routing differs.";
-        else if (routeState.kind === "estimate") el.textContent = "Routing service unreachable — filled an estimated " + fmtNum(routeState.miles) + " mi (straight-line × 1.27). Edit the miles if your routing differs.";
+        else if (routeState.kind === "estimate") el.textContent = routeState.pending
+          ? "Filled an estimated " + fmtNum(routeState.miles) + " mi right away — checking the exact road miles…"
+          : "Routing service unreachable — filled an estimated " + fmtNum(routeState.miles) + " mi (straight-line × 1.27). Edit the miles if your routing differs.";
         else if (routeState.kind === "error") el.textContent = "Road miles couldn't be calculated for these ZIPs — check both ZIPs, or type the miles in manually.";
         else if (routeState.kind === "manual") el.textContent = "Manual miles — change either ZIP to recalculate automatically.";
         else el.textContent = "Enter both ZIPs and road miles fill in automatically. Type miles + one rate — the other rate calculates itself.";
@@ -970,12 +973,20 @@
 
       /* =============== auto road miles (OSRM) =============== */
       var routeTimer = null;
+      var routeCache = new Map();
       function checkRoute() {
         var pairOk = /^\d{5}$/.test(form.puZip) && /^\d{5}$/.test(form.doZip);
         if (!pairOk) { if (routeState.kind !== "manual") routeState = { kind: "idle" }; renderRouteStatus(); return; }
         var pairKey = form.puZip + "->" + form.doZip;
         if (milesManual) return;
         if (autoPair === pairKey) return;
+        var cached = routeCache.get(pairKey);
+        if (cached) {
+          autoPair = pairKey;
+          routeState = { kind: "done", miles: cached.miles, durationMinutes: cached.durationMinutes };
+          applyMiles(String(cached.miles));
+          return;
+        }
         routeState = { kind: "loading" }; renderRouteStatus();
         if (routeTimer) clearTimeout(routeTimer);
         var fromZip = form.puZip, toZip = form.doZip;
@@ -984,30 +995,40 @@
             var from = res[0], to = res[1];
             if (form.puZip !== fromZip || form.doZip !== toZip) return;
             if (!from || !to) { routeState = { kind: "error" }; renderRouteStatus(); return; }
+            /* Instant first answer: fill a straight-line estimate from the built-in
+               coordinates right away, so miles, RPM and total react the moment a
+               city/ZIP is picked — the exact road miles replace it when OSRM replies. */
+            var est = Math.round(haversineMi(from.lat, from.lng, to.lat, to.lng) * 1.27);
+            if (!milesManual && est > 0) {
+              routeState = { kind: "estimate", miles: est, pending: true };
+              applyMiles(String(est));
+            }
             var url = OSRM_API + from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?overview=false";
-            function osrm() { return fetchJson(url, 12000); }
+            function osrm() { return fetchJson(url, 8000); }
             osrm().catch(function () { return osrm(); }).then(function (data) {
               if (form.puZip !== fromZip || form.doZip !== toZip) return;
               var routes = data && data.routes;
               var first = Array.isArray(routes) ? routes[0] : null;
               if (!first || typeof first.distance !== "number" || !isFinite(first.distance)) throw new Error("no route");
-              autoPair = pairKey;
               var miles = Math.round(first.distance / 1609.344);
-              routeState = { kind: "done", miles: miles, durationMinutes: typeof first.duration === "number" && isFinite(first.duration) ? Math.round(first.duration / 60) : null };
+              var dur = typeof first.duration === "number" && isFinite(first.duration) ? Math.round(first.duration / 60) : null;
+              routeCache.set(pairKey, { miles: miles, durationMinutes: dur });
+              if (milesManual) return;
+              autoPair = pairKey;
+              routeState = { kind: "done", miles: miles, durationMinutes: dur };
               applyMiles(String(miles));
             }).catch(function () {
               if (form.puZip !== fromZip || form.doZip !== toZip) return;
-              /* routing service unreachable — fall back to a clearly labelled estimate
-                 (straight-line distance × 1.27 typical road factor) instead of nothing */
+              /* routing service unreachable — keep the instant estimate already shown */
+              if (milesManual) return;
               autoPair = pairKey;
-              var est = Math.round(haversineMi(from.lat, from.lng, to.lat, to.lng) * 1.27);
               routeState = { kind: "estimate", miles: est };
-              applyMiles(String(est));
+              renderRouteStatus();
             });
           }, function () {
             if (form.puZip === fromZip && form.doZip === toZip) { routeState = { kind: "error" }; renderRouteStatus(); }
           });
-        }, 450);
+        }, 150);
       }
 
       /* =============== nearby pickup cities (within 30 mi) =============== */
@@ -1172,22 +1193,26 @@
           var q = els.cityFilter.value.trim().toLowerCase();
           var current = (form.doCity && form.doState === cityState) ? form.doCity : "";
           var pickedVisible = vis.some(function (c) { return c.city === current; });
-          els.citySelect.innerHTML = "";
-          var ph = document.createElement("option");
-          ph.value = "";
-          ph.textContent = q ? vis.length + " cities match — choose one…" : "Choose a city…";
-          els.citySelect.appendChild(ph);
-          if (current && !pickedVisible) {
-            var cur = document.createElement("option");
-            cur.value = current; cur.textContent = current + " — ZIP " + form.doZip;
-            els.citySelect.appendChild(cur);
+          var key = cityState + "|" + q + "|" + current + "|" + form.doZip + "|" + vis.length + "|" + (pickedVisible ? "1" : "0");
+          if (key !== cityOptionsKey) {
+            cityOptionsKey = key;
+            els.citySelect.innerHTML = "";
+            var ph = document.createElement("option");
+            ph.value = "";
+            ph.textContent = q ? vis.length + " cities match — choose one…" : "Choose a city…";
+            els.citySelect.appendChild(ph);
+            if (current && !pickedVisible) {
+              var cur = document.createElement("option");
+              cur.value = current; cur.textContent = current + " — ZIP " + form.doZip;
+              els.citySelect.appendChild(cur);
+            }
+            vis.forEach(function (c) {
+              var o = document.createElement("option");
+              o.value = c.city; o.textContent = c.city + " — " + c.zip;
+              els.citySelect.appendChild(o);
+            });
+            els.citySelect.value = current;
           }
-          vis.forEach(function (c) {
-            var o = document.createElement("option");
-            o.value = c.city; o.textContent = c.city + " — " + c.zip;
-            els.citySelect.appendChild(o);
-          });
-          els.citySelect.value = current;
           els.cityFilterEmpty.hidden = !(q && vis.length === 0);
           if (q && vis.length === 0) els.cityFilterEmpty.textContent = "No city in " + cityState + " matches “" + els.cityFilter.value + "” — clear the filter to see the full list.";
         }
