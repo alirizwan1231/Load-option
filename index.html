@@ -373,6 +373,11 @@
                 <span>Truck type</span>
                 <select class="input" id="truckType" aria-label="Truck type"></select>
               </label>
+              <label class="field" id="customTruckWrap" hidden>
+                <span>Custom truck type</span>
+                <input class="input" id="customTruckType" type="text" placeholder="e.g. Gooseneck, Sprinter Van, RGN…" maxlength="48" autocomplete="off" aria-label="Custom truck type" />
+              </label>
+              <p class="hint" id="customTruckHint" hidden>Type the exact name — it will show on the ticket and in the copied text.</p>
             </div>
           </section>
 
@@ -643,7 +648,8 @@
     <script>
       "use strict";
       /* =============== constants =============== */
-      var TRUCK_TYPES = ["Dry Van","Reefer","Flatbed","Step Deck","Power Only","Box Truck","Conestoga","Hotshot","Tanker","Other"];
+      var TRUCK_TYPES = ["Dry Van","Reefer","Flatbed","Step Deck","Power Only","Box Truck","Conestoga","CDL Hotshot","Non-CDL Hotshot","Tanker","Other"];
+      var CUSTOM_TRUCK = "__custom__";
       var US_STATES = [["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],["ID","Idaho"],["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],["KS","Kansas"],["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],["MD","Maryland"],["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],["MS","Mississippi"],["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],["NV","Nevada"],["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],["NY","New York"],["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],["OK","Oklahoma"],["OR","Oregon"],["PA","Pennsylvania"],["RI","Rhode Island"],["SC","South Carolina"],["SD","South Dakota"],["TN","Tennessee"],["TX","Texas"],["UT","Utah"],["VT","Vermont"],["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],["WI","Wisconsin"],["WY","Wyoming"]];
       var STORE_KEY = "load-option-generator.loads.v1";
       var ZIP_API = "https://api.zippopotam.us/us/";
@@ -651,7 +657,7 @@
 
       function $(id) { return document.getElementById(id); }
       var els = {};
-      ["truckType","puDate","puWindow","puZip","puLookupHint","puCity","puState",
+      ["truckType","customTruckWrap","customTruckType","customTruckHint","puDate","puWindow","puZip","puLookupHint","puCity","puState",
        "presChipRow","presChipText","presNoneHint","presCity","presState","nearbyBtn","nearbyNeedZip","nearbyError","nearbyList","exactCityBtn","exactCityName","exactCityZip","nearbyScroll","nearbyEmpty",
        "doDate","doWindow","modeZipBtn","modeCityBtn","doZipPane","doCityPane","doZip","doLookupHint","doCity","doState",
        "statePicker","statePickerBtn","statePickerLabel","statePickerPanel","stateSearch","stateList",
@@ -748,7 +754,7 @@
       function retryZipDb() { if (ZIPDB.failed) { ZIPDB.promise = null; ZIPDB.failed = false; } }
 
       /* =============== form state =============== */
-      var EMPTY_FORM = { truckType: "Dry Van", puZip: "", puCity: "", puState: "", puDate: "", puWindow: "",
+      var EMPTY_FORM = { truckType: "Dry Van", customTruckType: "", puZip: "", puCity: "", puState: "", puDate: "", puWindow: "",
         doZip: "", doCity: "", doState: "", doDate: "", doWindow: "", presCity: "", presState: "",
         loadedMiles: "", deadhead: "", ratePerMile: "", totalRate: "", notes: "" };
       var form = Object.assign({}, EMPTY_FORM);
@@ -766,6 +772,10 @@
       var citiesToken = 0;
       var cityOptionsKey = "";
 
+      function effectiveTruckType() {
+        if (form.truckType === CUSTOM_TRUCK) return form.customTruckType.trim() || "Custom Truck";
+        return form.truckType;
+      }
       function presentedPlace() {
         if (form.presCity.trim()) return [form.presCity.trim(), form.presState.trim()].filter(Boolean).join(", ");
         return placeLine(form.puCity, form.puState, form.puZip);
@@ -785,7 +795,7 @@
         var doWhen = [fmtDate(form.doDate) || "Date TBD", form.doWindow.trim()].filter(Boolean).join(" · ");
         var lines = [
           rule,
-          "🚛 " + form.truckType.toUpperCase() + " — LOAD OPTION",
+          "🚛 " + effectiveTruckType().toUpperCase() + " — LOAD OPTION",
           rule,
           "",
           "📍 PICKUP",
@@ -848,7 +858,7 @@
       }
       function renderPreview() {
         var n = nums();
-        els.tkTruck.textContent = form.truckType;
+        els.tkTruck.textContent = effectiveTruckType();
         if (n.total != null) { els.tkTotalWrap.hidden = false; els.tkTotal.textContent = fmtMoney(n.total); }
         else els.tkTotalWrap.hidden = true;
         var puPresented = form.presCity.trim() !== "";
@@ -884,6 +894,10 @@
 
       function syncInputs() {
         els.truckType.value = form.truckType;
+        els.customTruckType.value = form.customTruckType || "";
+        var isCustom = form.truckType === CUSTOM_TRUCK;
+        els.customTruckWrap.hidden = !isCustom;
+        els.customTruckHint.hidden = !isCustom;
         els.puDate.value = form.puDate; els.puWindow.value = form.puWindow;
         els.puZip.value = form.puZip; els.puCity.value = form.puCity; els.puState.value = form.puState;
         els.presCity.value = form.presCity; els.presState.value = form.presState;
@@ -1312,7 +1326,8 @@
         var load = {
           id: Date.now(),
           createdAt: new Date().toISOString(),
-          truckType: form.truckType,
+          truckType: effectiveTruckType(),
+          customTruckType: form.truckType === CUSTOM_TRUCK ? form.customTruckType.trim() : "",
           pickupZip: form.puZip.trim(), pickupCity: form.puCity.trim(), pickupState: form.puState.trim().toUpperCase(),
           pickupDate: form.puDate, pickupWindow: form.puWindow.trim(),
           dropoffZip: form.doZip.trim(), dropoffCity: form.doCity.trim(), dropoffState: form.doState.trim().toUpperCase(),
@@ -1336,8 +1351,11 @@
       }
       function reuseLoad(load) {
         var num = function (v) { return v == null ? "" : String(v); };
+        var savedTruck = load.truckType || "Dry Van";
+        var savedCustom = load.customTruckType || (TRUCK_TYPES.indexOf(savedTruck) === -1 ? savedTruck : "");
         form = {
-          truckType: load.truckType || "Dry Van",
+          truckType: savedCustom ? CUSTOM_TRUCK : savedTruck,
+          customTruckType: savedCustom,
           puZip: load.pickupZip || "", puCity: load.pickupCity || "", puState: load.pickupState || "",
           puDate: load.pickupDate || "", puWindow: load.pickupWindow || "",
           doZip: load.dropoffZip || "", doCity: load.dropoffCity || "", doState: load.dropoffState || "",
@@ -1488,7 +1506,7 @@
           c.fillStyle = "rgba(255,255,255,0.55)";
           c.font = '500 11px "IBM Plex Mono", monospace';
           c.fillText("L O A D   O P T I O N", 28, 34);
-          var truck = (form.truckType || "Truck").toUpperCase();
+          var truck = (effectiveTruckType() || "Truck").toUpperCase();
           var maxTruckW = W - 56 - (totalBlockW ? totalBlockW + 10 : 0);
           var size = 46;
           c.font = "600 " + size + 'px "Barlow Condensed", sans-serif';
@@ -1570,7 +1588,14 @@
         o.value = t; o.textContent = t;
         els.truckType.appendChild(o);
       });
-      els.truckType.addEventListener("change", function () { update({ truckType: els.truckType.value }, { inputs: true }); renderPreview(); });
+      var customOpt = document.createElement("option");
+      customOpt.value = CUSTOM_TRUCK; customOpt.textContent = "Custom — type your own…";
+      els.truckType.appendChild(customOpt);
+      els.truckType.addEventListener("change", function () {
+        update({ truckType: els.truckType.value });
+        if (els.truckType.value === CUSTOM_TRUCK) els.customTruckType.focus();
+      });
+      els.customTruckType.addEventListener("input", function () { form.customTruckType = els.customTruckType.value; renderPreview(); });
       els.puDate.addEventListener("input", function () { form.puDate = els.puDate.value; renderPreview(); });
       els.puWindow.addEventListener("input", function () { form.puWindow = els.puWindow.value; renderPreview(); });
       els.doDate.addEventListener("input", function () { form.doDate = els.doDate.value; renderPreview(); });
