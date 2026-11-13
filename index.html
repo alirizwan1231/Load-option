@@ -774,23 +774,25 @@
         return { miles: parseNum(form.loadedMiles), deadhead: parseNum(form.deadhead), rpm: parseNum(form.ratePerMile), total: parseNum(form.totalRate) };
       }
       function buildShareText() {
-        /* Dispatch-board format: framed header, one block per stop (place first,
-           then date), a specs block, and the money line set apart at the end.
-           *...* renders bold in WhatsApp and stays readable as plain text anywhere else. */
+        /* Clean plain-text format — NO asterisks or markdown symbols, so the
+           copied text looks exactly the same everywhere it is pasted
+           (WhatsApp, email, load board, SMS). Emphasis comes from CAPS,
+           emoji markers, spacing and the frame line, not from *bold* codes
+           that used to leak into the clipboard as stray * characters. */
         var n = nums();
         var rule = "━━━━━━━━━━━━━━━━━━━";
         var puWhen = [fmtDate(form.puDate) || "Date TBD", form.puWindow.trim()].filter(Boolean).join(" · ");
         var doWhen = [fmtDate(form.doDate) || "Date TBD", form.doWindow.trim()].filter(Boolean).join(" · ");
         var lines = [
           rule,
-          "🚛 *" + form.truckType.toUpperCase() + "* — LOAD OPTION",
+          "🚛 " + form.truckType.toUpperCase() + " — LOAD OPTION",
           rule,
           "",
-          "📍 *PICKUP*",
+          "📍 PICKUP",
           presentedPlace(),
           puWhen,
           "",
-          "🏁 *DROP-OFF*",
+          "🏁 DROP-OFF",
           placeLine(form.doCity, form.doState, form.doZip),
           doWhen
         ];
@@ -800,9 +802,10 @@
         if (specs.length) lines.push("", specs.join("\n"));
         var money = [];
         if (n.rpm != null) money.push("Rate: " + fmtRate(n.rpm) + "/mi");
-        if (n.total != null) money.push("*Total: " + fmtMoney(n.total) + "*");
+        if (n.total != null) money.push("💰 TOTAL: " + fmtMoney(n.total));
         if (money.length) lines.push("", money.join("\n"));
         if (form.notes.trim()) lines.push("", "📝 Notes: " + form.notes.trim());
+        lines.push("", rule);
         return lines.join("\n");
       }
 
