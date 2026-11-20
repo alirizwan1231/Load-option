@@ -455,7 +455,7 @@
               <div class="divider">
                 <div>
                   <p class="subhead">Pickup shown to carrier</p>
-                  <p class="hint">Present a city within 30 mi of the real ZIP instead of showing the ZIP itself — that city's distance becomes the deadhead.</p>
+                  <p class="hint">Present a city within 59 mi of the real ZIP instead of showing the ZIP itself — that city's distance becomes the deadhead.</p>
                 </div>
                 <div class="chip-row" id="presChipRow" hidden>
                   <span class="pill">
@@ -475,7 +475,7 @@
                     <input class="input mono upper" id="presState" type="text" maxlength="2" placeholder="IL" aria-label="Presented pickup state" />
                   </label>
                 </div>
-                <button type="button" class="btn-block" id="nearbyBtn">Find cities within 30 mi of pickup</button>
+                <button type="button" class="btn-block" id="nearbyBtn">Find cities within 59 mi of pickup</button>
                 <p class="hint" id="nearbyNeedZip">Enter the 5-digit pickup ZIP first.</p>
                 <p class="warn" id="nearbyError" hidden>Nearby cities couldn't load — type a presented city above instead.</p>
                 <div class="nearby-list" id="nearbyList" hidden>
@@ -487,7 +487,7 @@
                     <span class="sub" id="exactCityZip"></span>
                   </button>
                   <div class="nearby-scroll" id="nearbyScroll"></div>
-                  <p class="hint" id="nearbyEmpty" hidden>No other cities found within 30 mi of this ZIP — use the exact city or type a presented city above.</p>
+                  <p class="hint" id="nearbyEmpty" hidden>No other cities found within 59 mi of this ZIP — use the exact city or type a presented city above.</p>
                 </div>
               </div>
             </div>
@@ -695,6 +695,13 @@
       var CUSTOM_TRUCK = "__custom__";
       var US_STATES = [["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],["ID","Idaho"],["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],["KS","Kansas"],["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],["MD","Maryland"],["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],["MS","Mississippi"],["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],["NV","Nevada"],["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],["NY","New York"],["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],["OK","Oklahoma"],["OR","Oregon"],["PA","Pennsylvania"],["RI","Rhode Island"],["SC","South Carolina"],["SD","South Dakota"],["TN","Tennessee"],["TX","Texas"],["UT","Utah"],["VT","Vermont"],["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],["WI","Wisconsin"],["WY","Wyoming"]];
       var STORE_KEY = "load-option-generator.loads.v1";
+      /* Deadhead / presented-city search radius from the pickup ZIP: covers the
+         50 mi working limit and the full band out to 59 mi, so any city under
+         59 mi away can be selected. The list cap is generous for the same
+         reason — a wide rural ZIP can have many towns inside 59 mi, and
+         cutting the list at 30 hid the farther ones the user asked for. */
+      var NEARBY_RADIUS_MI = 59;
+      var NEARBY_MAX_CITIES = 80;
       var ZIP_API = "https://api.zippopotam.us/us/";
       var OSRM_API = "https://router.project-osrm.org/route/v1/driving/";
 
@@ -968,7 +975,7 @@
         }
         els.recalcBtn.disabled = !(/^\d{5}$/.test(form.puZip) && /^\d{5}$/.test(form.doZip)) || routeState.kind === "loading";
         els.nearbyBtn.disabled = !/^\d{5}$/.test(form.puZip) || nearbyState.kind === "loading";
-        els.nearbyBtn.textContent = nearbyState.kind === "loading" ? "Searching cities within 30 mi…" : "Find cities within 30 mi of pickup";
+        els.nearbyBtn.textContent = nearbyState.kind === "loading" ? "Searching cities within " + NEARBY_RADIUS_MI + " mi…" : "Find cities within " + NEARBY_RADIUS_MI + " mi of pickup";
         els.nearbyNeedZip.hidden = /^\d{5}$/.test(form.puZip);
         renderRouteStatus();
         renderNearby();
@@ -1216,7 +1223,7 @@
         }, 150);
       }
 
-      /* =============== nearby pickup cities (within 30 mi) =============== */
+      /* =============== nearby pickup cities (within 59 mi) =============== */
       function renderNearby() {
         els.nearbyError.hidden = nearbyState.kind !== "error";
         var show = nearbyState.kind === "done";
@@ -1269,13 +1276,13 @@
           var best = new Map();
           ZIPDB.rows.forEach(function (geo) {
             var d = haversineMi(origin.lat, origin.lng, geo.lat, geo.lng);
-            if (d > 30 || d === 0) return;
+            if (d > NEARBY_RADIUS_MI || d === 0) return;
             var key = geo.city.toLowerCase() + "|" + geo.state;
             var existing = best.get(key);
             if (!existing || d < existing.distanceMi) best.set(key, { city: geo.city, state: geo.state, zip: geo.zip, distanceMi: round1(d) });
           });
           best.delete(origin.city.toLowerCase() + "|" + origin.state);
-          var cities = Array.from(best.values()).sort(function (a, b) { return a.distanceMi - b.distanceMi; }).slice(0, 30);
+          var cities = Array.from(best.values()).sort(function (a, b) { return a.distanceMi - b.distanceMi; }).slice(0, NEARBY_MAX_CITIES);
           nearbyCache.set(zip, cities);
           nearbyState = { kind: "done", forZip: zip, cities: cities };
           renderPreview();
