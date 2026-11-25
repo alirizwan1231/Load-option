@@ -387,6 +387,18 @@
           </section>
 
           <section class="card">
+            <h2>Broker</h2>
+            <div class="stack">
+              <label class="field">
+                <span>Broker</span>
+                <select class="input" id="brokerSelect" aria-label="Broker"></select>
+              </label>
+              <p class="hint" id="brokerMcHint" hidden></p>
+              <p class="hint" id="brokerNoneHint">Optional — pick a broker and its name &amp; MC number will show on the ticket, in the copied text, the PNG and saved loads.</p>
+            </div>
+          </section>
+
+          <section class="card">
             <h2>Load details</h2>
             <div class="stack">
               <div class="grid2">
@@ -455,7 +467,7 @@
               <div class="divider">
                 <div>
                   <p class="subhead">Pickup shown to carrier</p>
-                  <p class="hint">Present a city within 59 mi of the real ZIP instead of showing the ZIP itself — that city's distance becomes the deadhead.</p>
+                  <p class="hint">Present a city within 100 mi of the real ZIP instead of showing the ZIP itself — that city's distance becomes the deadhead.</p>
                 </div>
                 <div class="chip-row" id="presChipRow" hidden>
                   <span class="pill">
@@ -475,7 +487,7 @@
                     <input class="input mono upper" id="presState" type="text" maxlength="2" placeholder="IL" aria-label="Presented pickup state" />
                   </label>
                 </div>
-                <button type="button" class="btn-block" id="nearbyBtn">Find cities within 59 mi of pickup</button>
+                <button type="button" class="btn-block" id="nearbyBtn">Find cities within 100 mi of pickup</button>
                 <p class="hint" id="nearbyNeedZip">Enter the 5-digit pickup ZIP first.</p>
                 <p class="warn" id="nearbyError" hidden>Nearby cities couldn't load — type a presented city above instead.</p>
                 <div class="nearby-list" id="nearbyList" hidden>
@@ -487,7 +499,7 @@
                     <span class="sub" id="exactCityZip"></span>
                   </button>
                   <div class="nearby-scroll" id="nearbyScroll"></div>
-                  <p class="hint" id="nearbyEmpty" hidden>No other cities found within 59 mi of this ZIP — use the exact city or type a presented city above.</p>
+                  <p class="hint" id="nearbyEmpty" hidden>No other cities found within 100 mi of this ZIP — use the exact city or type a presented city above.</p>
                 </div>
               </div>
             </div>
@@ -649,6 +661,7 @@
               <div><p class="sl">DEADHEAD</p><p class="sv" id="tkDh">—</p></div>
               <div><p class="sl">RATE / MI</p><p class="sv" id="tkRpm">—</p></div>
             </div>
+            <p class="ticket-load" id="tkBroker" hidden><span class="nl">Broker — </span><span id="tkBrokerText"></span></p>
             <p class="ticket-load" id="tkLoad" hidden><span class="nl">Load — </span><span id="tkLoadText"></span></p>
             <p class="ticket-notes" id="tkNotes" hidden><span class="nl">Notes — </span><span id="tkNotesText"></span></p>
           </div>
@@ -693,27 +706,39 @@
       /* =============== constants =============== */
       var TRUCK_TYPES = ["Dry Van","Reefer","Flatbed","Step Deck","Power Only","Box Truck","Conestoga","CDL Hotshot","Non-CDL Hotshot","Tanker","Other"];
       var CUSTOM_TRUCK = "__custom__";
+      var BROKERS = [
+        { name: "QUALITY LOGISTICS LLC", mc: "778936" },
+        { name: "SHRAM BROKERS LLC", mc: "636302" },
+        { name: "KCH TRANSPORTATION INC", mc: "487075" },
+        { name: "SCHNEIDER NATIONAL CARRIERS INC", mc: "133655" },
+        { name: "CH ROBINSON COMPANY LLC", mc: "131029" }
+      ];
+      function findBroker(name) {
+        var found = null;
+        BROKERS.forEach(function (b) { if (b.name === name) found = b; });
+        return found;
+      }
       var US_STATES = [["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],["ID","Idaho"],["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],["KS","Kansas"],["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],["MD","Maryland"],["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],["MS","Mississippi"],["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],["NV","Nevada"],["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],["NY","New York"],["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],["OK","Oklahoma"],["OR","Oregon"],["PA","Pennsylvania"],["RI","Rhode Island"],["SC","South Carolina"],["SD","South Dakota"],["TN","Tennessee"],["TX","Texas"],["UT","Utah"],["VT","Vermont"],["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],["WI","Wisconsin"],["WY","Wyoming"]];
       var STORE_KEY = "load-option-generator.loads.v1";
-      /* Deadhead / presented-city search radius from the pickup ZIP: covers the
-         50 mi working limit and the full band out to 59 mi, so any city under
-         59 mi away can be selected. The list cap is generous for the same
-         reason — a wide rural ZIP can have many towns inside 59 mi, and
-         cutting the list at 30 hid the farther ones the user asked for. */
-      var NEARBY_RADIUS_MI = 59;
-      var NEARBY_MAX_CITIES = 80;
+      /* Deadhead / presented-city search radius from the pickup ZIP: 100 mi,
+         so any city from the 50 mi working range out to 100 mi away can be
+         selected. The list cap is generous for the same reason — a wide
+         rural ZIP can have many towns inside 100 mi, and cutting the list
+         short would hide the farther ones the user asked for. */
+      var NEARBY_RADIUS_MI = 100;
+      var NEARBY_MAX_CITIES = 150;
       var ZIP_API = "https://api.zippopotam.us/us/";
       var OSRM_API = "https://router.project-osrm.org/route/v1/driving/";
 
       function $(id) { return document.getElementById(id); }
       var els = {};
-      ["truckType","customTruckWrap","customTruckType","customTruckHint","loadWeight","commodity","puDate","puWindow","puZip","puLookupHint","puCity","puState",
+      ["truckType","customTruckWrap","customTruckType","customTruckHint","brokerSelect","brokerMcHint","brokerNoneHint","loadWeight","commodity","puDate","puWindow","puZip","puLookupHint","puCity","puState",
        "presChipRow","presChipText","presNoneHint","presCity","presState","nearbyBtn","nearbyNeedZip","nearbyError","nearbyList","exactCityBtn","exactCityName","exactCityZip","nearbyScroll","nearbyEmpty",
        "doDate","doWindow","modeZipBtn","modeCityBtn","doZipPane","doCityPane","doZip","doLookupHint","doCity","doState",
        "statePicker","statePickerBtn","statePickerLabel","statePickerPanel","stateSearch","stateList",
        "cityPickStateFirst","citiesLoading","citiesFailed","citiesFailedText","citySelectWrap","cityFilter","citySelect","citySelectLabel","cityFilterEmpty","citySelectedNote","cityPickHint",
        "loadedMiles","deadhead","ratePerMile","totalRate","routeStatus","recalcBtn","notes",
-       "tkTruck","tkTotalWrap","tkTotal","tkPuWhen","tkPuCity","tkPuZip","tkDoWhen","tkDoCity","tkDoZip","tkMiles","tkDh","tkRpm","tkLoad","tkLoadText","tkNotes","tkNotesText",
+       "tkTruck","tkTotalWrap","tkTotal","tkPuWhen","tkPuCity","tkPuZip","tkDoWhen","tkDoCity","tkDoZip","tkMiles","tkDh","tkRpm","tkBroker","tkBrokerText","tkLoad","tkLoadText","tkNotes","tkNotesText",
        "shareText","copyBtn","copyLabel","waLink","pngBtn","pngLabel","saveBtn","saveLabel","recentList","toast","clearBtn","presClearBtn","citiesRetryBtn"
       ].forEach(function (id) { els[id] = $(id); });
 
@@ -832,7 +857,7 @@
       function retryZipDb() { if (ZIPDB.failed) { ZIPDB.promise = null; ZIPDB.failed = false; } }
 
       /* =============== form state =============== */
-      var EMPTY_FORM = { truckType: "Dry Van", customTruckType: "", loadWeight: "", commodity: "", puZip: "", puCity: "", puState: "", puDate: "", puWindow: "",
+      var EMPTY_FORM = { truckType: "Dry Van", customTruckType: "", brokerName: "", brokerMc: "", loadWeight: "", commodity: "", puZip: "", puCity: "", puState: "", puDate: "", puWindow: "",
         doZip: "", doCity: "", doState: "", doDate: "", doWindow: "", presCity: "", presState: "",
         loadedMiles: "", deadhead: "", ratePerMile: "", totalRate: "", notes: "" };
       var form = Object.assign({}, EMPTY_FORM);
@@ -854,6 +879,12 @@
         if (form.truckType === CUSTOM_TRUCK) return form.customTruckType.trim() || "Custom Truck";
         return form.truckType;
       }
+      function brokerLine() {
+        var name = String(form.brokerName || "").trim();
+        if (!name) return "";
+        var mc = String(form.brokerMc || "").trim();
+        return mc ? name + " · MC " + mc : name;
+      }
       function presentedPlace() {
         if (form.presCity.trim()) return [form.presCity.trim(), form.presState.trim()].filter(Boolean).join(", ");
         return placeLine(form.puCity, form.puState, form.puZip);
@@ -874,7 +905,10 @@
         var lines = [
           rule,
           "🚛 " + effectiveTruckType().toUpperCase() + " — LOAD OPTION",
-          rule,
+          rule
+        ];
+        if (brokerLine()) lines.push("", "🏢 Broker: " + brokerLine());
+        lines.push(
           "",
           "📍 PICKUP",
           presentedPlace(),
@@ -883,7 +917,7 @@
           "🏁 DROP-OFF",
           placeLine(form.doCity, form.doState, form.doZip),
           doWhen
-        ];
+        );
         var loadLines = [];
         if (n.weight != null) loadLines.push("Weight: " + fmtNum(n.weight) + " lbs");
         else if (String(form.loadWeight || "").trim()) loadLines.push("Weight: " + String(form.loadWeight).trim());
@@ -947,6 +981,12 @@
         var puPresented = form.presCity.trim() !== "";
         renderTicketStop("Pu", form.puDate, form.puWindow, puPresented ? form.presCity : form.puCity, puPresented ? form.presState : form.puState, puPresented ? "" : form.puZip);
         renderTicketStop("Do", form.doDate, form.doWindow, form.doCity, form.doState, form.doZip);
+        var bLine = brokerLine();
+        if (bLine) { els.tkBroker.hidden = false; els.tkBrokerText.textContent = bLine; }
+        else els.tkBroker.hidden = true;
+        els.brokerMcHint.hidden = !bLine;
+        els.brokerNoneHint.hidden = !!bLine;
+        if (bLine) els.brokerMcHint.textContent = brokerLine() + " — shown on the ticket and in the copied text.";
         els.tkMiles.textContent = n.miles != null ? fmtNum(n.miles) + " MI" : "—";
         els.tkDh.textContent = n.deadhead != null ? fmtNum(n.deadhead) + " MI" : "—";
         els.tkRpm.textContent = n.rpm != null ? fmtRate(n.rpm) : "—";
@@ -984,6 +1024,7 @@
 
       function syncInputs() {
         els.truckType.value = form.truckType;
+        els.brokerSelect.value = form.brokerName || "";
         els.customTruckType.value = form.customTruckType || "";
         els.loadWeight.value = form.loadWeight; els.commodity.value = form.commodity;
         var isCustom = form.truckType === CUSTOM_TRUCK;
@@ -1223,7 +1264,7 @@
         }, 150);
       }
 
-      /* =============== nearby pickup cities (within 59 mi) =============== */
+      /* =============== nearby pickup cities (within 100 mi) =============== */
       function renderNearby() {
         els.nearbyError.hidden = nearbyState.kind !== "error";
         var show = nearbyState.kind === "done";
@@ -1458,6 +1499,8 @@
           createdAt: new Date().toISOString(),
           truckType: effectiveTruckType(),
           customTruckType: form.truckType === CUSTOM_TRUCK ? form.customTruckType.trim() : "",
+          brokerName: String(form.brokerName || "").trim(),
+          brokerMc: String(form.brokerMc || "").trim(),
           loadWeight: n.weight != null ? n.weight : (String(form.loadWeight || "").trim() || null),
           commodity: form.commodity.trim(),
           pickupZip: form.puZip.trim(), pickupCity: form.puCity.trim(), pickupState: form.puState.trim().toUpperCase(),
@@ -1488,6 +1531,8 @@
         form = {
           truckType: savedCustom ? CUSTOM_TRUCK : savedTruck,
           customTruckType: savedCustom,
+          brokerName: load.brokerName || "",
+          brokerMc: load.brokerMc || (findBroker(load.brokerName || "") ? findBroker(load.brokerName || "").mc : ""),
           loadWeight: load.loadWeight == null ? "" : String(load.loadWeight),
           commodity: load.commodity || "",
           puZip: load.pickupZip || "", puCity: load.pickupCity || "", puState: load.pickupState || "",
@@ -1547,6 +1592,7 @@
           r1.appendChild(tt); r1.appendChild(rt);
           var r2 = document.createElement("p"); r2.className = "r2";
           var meta = load.totalRate != null ? fmtMoney(load.totalRate) : "No rate";
+          if (load.brokerName) meta += " · " + load.brokerName + (load.brokerMc ? " (MC " + load.brokerMc + ")" : "");
           if (load.ratePerMile != null) meta += " · " + fmtRate(load.ratePerMile) + "/mi";
           if (load.loadWeight != null && load.loadWeight !== "") meta += " · " + (typeof load.loadWeight === "number" ? fmtNum(load.loadWeight) + " lbs" : load.loadWeight);
           if (load.commodity) meta += " · " + load.commodity;
@@ -1623,10 +1669,16 @@
           if (form.commodity.trim()) loadPartsPng.push("Commodity: " + form.commodity.trim());
           var loadLines = [];
           if (scratch && loadPartsPng.length) { scratch.font = "400 16px Archivo, sans-serif"; loadLines = wrapText(scratch, loadPartsPng.join("  ·  "), W - 56); }
+          var brokerLines = [];
+          if (scratch && brokerLine()) { scratch.font = "400 16px Archivo, sans-serif"; brokerLines = wrapText(scratch, brokerLine(), W - 56); }
+          var brokerH = brokerLines.length ? 34 + brokerLines.length * 23 : 0;
+          var loadH = loadLines.length ? 34 + loadLines.length * 23 : 0;
+          var notesH = noteLines.length ? 34 + noteLines.length * 23 : 0;
           var PU_Y = 122, DO_Y = 264, BAND_Y = 362, BAND_H = 88;
-          var LOAD_Y = BAND_Y + BAND_H + 30;
-          var NOTES_Y = BAND_Y + BAND_H + (loadLines.length ? 34 + loadLines.length * 23 : 0) + 30;
-          var H = BAND_Y + BAND_H + (loadLines.length ? 34 + loadLines.length * 23 : 0) + (noteLines.length ? 34 + noteLines.length * 23 : 0) + 26;
+          var BROKER_Y = BAND_Y + BAND_H + 30;
+          var LOAD_Y = BAND_Y + BAND_H + brokerH + 30;
+          var NOTES_Y = BAND_Y + BAND_H + brokerH + loadH + 30;
+          var H = BAND_Y + BAND_H + brokerH + loadH + notesH + 26;
           var canvas = document.createElement("canvas");
           canvas.width = W * S; canvas.height = H * S;
           var c = canvas.getContext("2d");
@@ -1696,6 +1748,12 @@
             c.fillText(pair[1], cx, BAND_Y + 64);
             c.textAlign = "left";
           });
+          if (brokerLines.length) {
+            c.fillStyle = DIM; c.font = '500 11px "IBM Plex Mono", monospace';
+            c.fillText("B R O K E R", 28, BROKER_Y);
+            c.fillStyle = INK; c.font = "400 16px Archivo, sans-serif";
+            brokerLines.forEach(function (line, i) { c.fillText(line, 28, BROKER_Y + 26 + i * 23); });
+          }
           if (loadLines.length) {
             c.fillStyle = DIM; c.font = '500 11px "IBM Plex Mono", monospace';
             c.fillText("L O A D", 28, LOAD_Y);
@@ -1741,6 +1799,18 @@
       var customOpt = document.createElement("option");
       customOpt.value = CUSTOM_TRUCK; customOpt.textContent = "Custom — type your own…";
       els.truckType.appendChild(customOpt);
+      var noBrokerOpt = document.createElement("option");
+      noBrokerOpt.value = ""; noBrokerOpt.textContent = "No broker";
+      els.brokerSelect.appendChild(noBrokerOpt);
+      BROKERS.forEach(function (b) {
+        var bo = document.createElement("option");
+        bo.value = b.name; bo.textContent = b.name + " — MC " + b.mc;
+        els.brokerSelect.appendChild(bo);
+      });
+      els.brokerSelect.addEventListener("change", function () {
+        var b = findBroker(els.brokerSelect.value);
+        update({ brokerName: b ? b.name : "", brokerMc: b ? b.mc : "" });
+      });
       els.truckType.addEventListener("change", function () {
         update({ truckType: els.truckType.value });
         if (els.truckType.value === CUSTOM_TRUCK) els.customTruckType.focus();
