@@ -296,11 +296,6 @@
         border: none; border-radius: 0.375rem; background: var(--accent); color: var(--accent-ink);
         padding: 0.75rem; font-size: 1rem; font-weight: 600;
       }
-      .btn-wa {
-        display: flex; min-height: 2.25rem; align-items: center; justify-content: center; gap: 0.5rem;
-        border-radius: 0.375rem; background: #25d366; color: #0b3d20; padding: 0.625rem 0.75rem;
-        font-weight: 600; text-decoration: none; font-size: 1rem;
-      }
       .btn-act {
         display: flex; min-height: 2.25rem; align-items: center; justify-content: center; gap: 0.5rem;
         border: 1px solid var(--border); background: var(--surface); color: var(--text);
@@ -374,15 +369,22 @@
           <section class="card">
             <h2>Truck</h2>
             <div class="stack">
-              <label class="field">
-                <span>Truck type</span>
-                <select class="input" id="truckType" aria-label="Truck type"></select>
-              </label>
+              <div class="grid2">
+                <label class="field">
+                  <span>Truck type</span>
+                  <select class="input" id="truckType" aria-label="Truck type"></select>
+                </label>
+                <label class="field">
+                  <span>Length (ft)</span>
+                  <input class="input mono" id="truckLength" type="text" inputmode="decimal" placeholder="e.g. 53" autocomplete="off" aria-label="Truck length in feet" />
+                </label>
+              </div>
               <label class="field" id="customTruckWrap" hidden>
                 <span>Custom truck type</span>
                 <input class="input" id="customTruckType" type="text" placeholder="e.g. Gooseneck, Sprinter Van, RGN…" maxlength="48" autocomplete="off" aria-label="Custom truck type" />
               </label>
               <p class="hint" id="customTruckHint" hidden>Type the exact name — it will show on the ticket and in the copied text.</p>
+              <p class="hint">Length is optional — when filled, it shows with the truck type on the ticket, in the copied text, the image and saved loads (e.g. Dry Van · 53 ft).</p>
             </div>
           </section>
 
@@ -676,10 +678,10 @@
               <svg class="ic-lg" id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               <span id="copyLabel">Copy text</span>
             </button>
-            <a class="btn-wa" id="waLink" href="https://wa.me/" target="_blank" rel="noreferrer" aria-label="Share on WhatsApp">
-              <svg class="ic-lg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.82.37-.3.3-1.14 1.12-1.14 2.78s1.17 3.26 1.34 3.48c.17.22 2.31 3.53 5.6 4.95.78.34 1.39.54 1.87.69.78.25 1.5.21 2.06.13.63-.09 1.92-.59 2.36-1.2.44-.61.44-1.13.31-1.24-.13-.11-.28-.18-.58-.33ZM12.05 21.79h-.01a9.87 9.87 0 0 1-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.82 9.82 0 0 1-1.51-5.26c0-5.43 4.42-9.84 9.86-9.84a9.83 9.83 0 0 1 6.96 2.89 9.82 9.82 0 0 1 2.9 6.97c0 5.43-4.43 9.84-9.83 9.84Zm8.42-18.24A11.8 11.8 0 0 0 12.05 0C5.5 0 .16 5.34.16 11.9c0 2.1.55 4.14 1.59 5.95L.06 24l6.3-1.65a11.87 11.87 0 0 0 5.68 1.45h.01c6.55 0 11.89-5.34 11.89-11.9 0-3.18-1.24-6.16-3.47-8.4Z"/></svg>
-              WhatsApp
-            </a>
+            <button type="button" class="btn-act" id="copyImgBtn">
+              <svg class="ic-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span id="copyImgLabel">Copy image</span>
+            </button>
             <button type="button" class="btn-act" id="pngBtn">
               <svg class="ic-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
               <span id="pngLabel">PNG image</span>
@@ -689,7 +691,7 @@
               <span id="saveLabel">Save load</span>
             </button>
           </div>
-          <p class="save-note">Loads are mostly sent as text — copy it and paste into WhatsApp, email, or a load board. Save keeps the load in this browser so the next similar one takes seconds.</p>
+          <p class="save-note">Copy the text or copy the image directly and paste it anywhere — WhatsApp, email, or a load board. Save keeps the load in this browser so the next similar one takes seconds.</p>
         </div>
       </div>
 
@@ -732,14 +734,14 @@
 
       function $(id) { return document.getElementById(id); }
       var els = {};
-      ["truckType","customTruckWrap","customTruckType","customTruckHint","brokerSelect","brokerMcHint","brokerNoneHint","loadWeight","commodity","puDate","puWindow","puZip","puLookupHint","puCity","puState",
+      ["truckType","truckLength","customTruckWrap","customTruckType","customTruckHint","brokerSelect","brokerMcHint","brokerNoneHint","loadWeight","commodity","puDate","puWindow","puZip","puLookupHint","puCity","puState",
        "presChipRow","presChipText","presNoneHint","presCity","presState","nearbyBtn","nearbyNeedZip","nearbyError","nearbyList","exactCityBtn","exactCityName","exactCityZip","nearbyScroll","nearbyEmpty",
        "doDate","doWindow","modeZipBtn","modeCityBtn","doZipPane","doCityPane","doZip","doLookupHint","doCity","doState",
        "statePicker","statePickerBtn","statePickerLabel","statePickerPanel","stateSearch","stateList",
        "cityPickStateFirst","citiesLoading","citiesFailed","citiesFailedText","citySelectWrap","cityFilter","citySelect","citySelectLabel","cityFilterEmpty","citySelectedNote","cityPickHint",
        "loadedMiles","deadhead","ratePerMile","totalRate","routeStatus","recalcBtn","notes",
        "tkTruck","tkTotalWrap","tkTotal","tkPuWhen","tkPuCity","tkPuZip","tkDoWhen","tkDoCity","tkDoZip","tkMiles","tkDh","tkRpm","tkBroker","tkBrokerText","tkLoad","tkLoadText","tkNotes","tkNotesText",
-       "shareText","copyBtn","copyLabel","waLink","pngBtn","pngLabel","saveBtn","saveLabel","recentList","toast","clearBtn","presClearBtn","citiesRetryBtn"
+       "shareText","copyBtn","copyLabel","copyImgBtn","copyImgLabel","pngBtn","pngLabel","saveBtn","saveLabel","recentList","toast","clearBtn","presClearBtn","citiesRetryBtn"
       ].forEach(function (id) { els[id] = $(id); });
 
       /* =============== formatting helpers =============== */
@@ -857,7 +859,7 @@
       function retryZipDb() { if (ZIPDB.failed) { ZIPDB.promise = null; ZIPDB.failed = false; } }
 
       /* =============== form state =============== */
-      var EMPTY_FORM = { truckType: "Dry Van", customTruckType: "", brokerName: "", brokerMc: "", loadWeight: "", commodity: "", puZip: "", puCity: "", puState: "", puDate: "", puWindow: "",
+      var EMPTY_FORM = { truckType: "Dry Van", truckLength: "", customTruckType: "", brokerName: "", brokerMc: "", loadWeight: "", commodity: "", puZip: "", puCity: "", puState: "", puDate: "", puWindow: "",
         doZip: "", doCity: "", doState: "", doDate: "", doWindow: "", presCity: "", presState: "",
         loadedMiles: "", deadhead: "", ratePerMile: "", totalRate: "", notes: "" };
       var form = Object.assign({}, EMPTY_FORM);
@@ -878,6 +880,17 @@
       function effectiveTruckType() {
         if (form.truckType === CUSTOM_TRUCK) return form.customTruckType.trim() || "Custom Truck";
         return form.truckType;
+      }
+      function truckLengthText() {
+        var raw = String(form.truckLength || "").trim();
+        if (!raw) return "";
+        var n = parseNum(raw);
+        return n != null ? fmtNum(n) + " ft" : raw;
+      }
+      function truckDisplayName() {
+        var base = effectiveTruckType();
+        var len = truckLengthText();
+        return len ? base + " · " + len : base;
       }
       function brokerLine() {
         var name = String(form.brokerName || "").trim();
@@ -904,7 +917,7 @@
         var doWhen = [fmtDate(form.doDate) || "Date TBD", form.doWindow.trim()].filter(Boolean).join(" · ");
         var lines = [
           rule,
-          "🚛 " + effectiveTruckType().toUpperCase() + " — LOAD OPTION",
+          "🚛 " + truckDisplayName().toUpperCase() + " — LOAD OPTION",
           rule
         ];
         if (brokerLine()) lines.push("", "🏢 Broker: " + brokerLine());
@@ -975,7 +988,7 @@
       }
       function renderPreview() {
         var n = nums();
-        els.tkTruck.textContent = effectiveTruckType();
+        els.tkTruck.textContent = truckDisplayName();
         if (n.total != null) { els.tkTotalWrap.hidden = false; els.tkTotal.textContent = fmtMoney(n.total); }
         else els.tkTotalWrap.hidden = true;
         var puPresented = form.presCity.trim() !== "";
@@ -1000,7 +1013,6 @@
         else els.tkNotes.hidden = true;
         var text = buildShareText();
         els.shareText.textContent = text;
-        els.waLink.href = "https://wa.me/?text=" + encodeURIComponent(text);
         /* presented pickup chip */
         var hasPres = form.presCity.trim() !== "";
         els.presChipRow.hidden = !hasPres;
@@ -1024,6 +1036,7 @@
 
       function syncInputs() {
         els.truckType.value = form.truckType;
+        els.truckLength.value = form.truckLength || "";
         els.brokerSelect.value = form.brokerName || "";
         els.customTruckType.value = form.customTruckType || "";
         els.loadWeight.value = form.loadWeight; els.commodity.value = form.commodity;
@@ -1498,6 +1511,7 @@
           id: Date.now(),
           createdAt: new Date().toISOString(),
           truckType: effectiveTruckType(),
+          truckLength: String(form.truckLength || "").trim(),
           customTruckType: form.truckType === CUSTOM_TRUCK ? form.customTruckType.trim() : "",
           brokerName: String(form.brokerName || "").trim(),
           brokerMc: String(form.brokerMc || "").trim(),
@@ -1530,6 +1544,7 @@
         var savedCustom = load.customTruckType || (TRUCK_TYPES.indexOf(savedTruck) === -1 ? savedTruck : "");
         form = {
           truckType: savedCustom ? CUSTOM_TRUCK : savedTruck,
+          truckLength: load.truckLength == null ? "" : String(load.truckLength),
           customTruckType: savedCustom,
           brokerName: load.brokerName || "",
           brokerMc: load.brokerMc || (findBroker(load.brokerName || "") ? findBroker(load.brokerName || "").mc : ""),
@@ -1587,7 +1602,7 @@
           var pinWrap = document.createElement("span"); pinWrap.innerHTML = PIN_SVG;
           var info = document.createElement("div"); info.className = "info";
           var r1 = document.createElement("p"); r1.className = "r1";
-          var tt = document.createElement("span"); tt.style.textTransform = "uppercase"; tt.textContent = load.truckType;
+          var tt = document.createElement("span"); tt.style.textTransform = "uppercase"; tt.textContent = load.truckType + (load.truckLength ? " · " + load.truckLength + (String(load.truckLength).toLowerCase().indexOf("ft") === -1 ? " ft" : "") : "");
           var rt = document.createElement("span"); rt.className = "route"; rt.textContent = " · " + route;
           r1.appendChild(tt); r1.appendChild(rt);
           var r2 = document.createElement("p"); r2.className = "r2";
@@ -1655,7 +1670,7 @@
         if (line) lines.push(line);
         return lines;
       }
-      function renderTicketPng() {
+      function renderTicketBlob() {
         var n = nums();
         var ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
         return ready.then(function () {
@@ -1702,7 +1717,7 @@
           c.fillStyle = "rgba(255,255,255,0.55)";
           c.font = '500 11px "IBM Plex Mono", monospace';
           c.fillText("L O A D   O P T I O N", 28, 34);
-          var truck = (effectiveTruckType() || "Truck").toUpperCase();
+          var truck = (truckDisplayName() || "Truck").toUpperCase();
           var maxTruckW = W - 56 - (totalBlockW ? totalBlockW + 10 : 0);
           var size = 46;
           c.font = "600 " + size + 'px "Barlow Condensed", sans-serif';
@@ -1768,12 +1783,7 @@
           }
           return new Promise(function (resolve) { canvas.toBlob(resolve, "image/png"); }).then(function (blob) {
             if (!blob) throw new Error("toBlob failed");
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement("a");
-            a.href = url;
-            a.download = "load-" + (form.puZip || "pickup") + "-to-" + (form.doZip || "drop") + ".png";
-            document.body.appendChild(a); a.click(); a.remove();
-            setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+            return blob;
           });
         });
       }
@@ -1781,12 +1791,53 @@
       function downloadPng() {
         if (pngBusy) return;
         pngBusy = true; els.pngLabel.textContent = "Making…"; els.pngBtn.disabled = true;
-        renderTicketPng().then(function () {
+        renderTicketBlob().then(function (blob) {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = "load-" + (form.puZip || "pickup") + "-to-" + (form.doZip || "drop") + ".png";
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
           flash("Image downloaded — ready to send.");
         }).catch(function () {
           flash("Image failed — use Copy text instead.");
         }).then(function () {
           pngBusy = false; els.pngLabel.textContent = "PNG image"; els.pngBtn.disabled = false;
+        });
+      }
+      var copyImgBusy = false;
+      var copyImgTimer = null;
+      function copyTicketImage() {
+        if (copyImgBusy) return;
+        if (!navigator.clipboard || typeof navigator.clipboard.write !== "function" || typeof ClipboardItem === "undefined") {
+          flash("Copy image isn't supported in this browser — use PNG image to download instead.");
+          return;
+        }
+        copyImgBusy = true; els.copyImgLabel.textContent = "Copying…"; els.copyImgBtn.disabled = true;
+        /* Safari requires the ClipboardItem to receive a Promise — pass the
+           blob promise directly so the write stays inside the tap gesture. */
+        var blobPromise = renderTicketBlob();
+        var item;
+        try {
+          var payload = {};
+          payload["image/png"] = blobPromise;
+          item = new ClipboardItem(payload);
+        } catch (e) {
+          item = null;
+        }
+        var writePromise = item
+          ? navigator.clipboard.write([item])
+          : blobPromise.then(function (blob) { var p2 = {}; p2["image/png"] = blob; return navigator.clipboard.write([new ClipboardItem(p2)]); });
+        writePromise.then(function () {
+          els.copyImgLabel.textContent = "Copied!";
+          flash("Image copied — paste it anywhere.");
+          if (copyImgTimer) clearTimeout(copyImgTimer);
+          copyImgTimer = setTimeout(function () { els.copyImgLabel.textContent = "Copy image"; }, 2000);
+        }).catch(function () {
+          flash("Couldn't copy the image — use PNG image to download instead.");
+        }).then(function () {
+          copyImgBusy = false; els.copyImgBtn.disabled = false;
+          if (els.copyImgLabel.textContent === "Copying…") els.copyImgLabel.textContent = "Copy image";
         });
       }
 
@@ -1816,6 +1867,7 @@
         if (els.truckType.value === CUSTOM_TRUCK) els.customTruckType.focus();
       });
       els.customTruckType.addEventListener("input", function () { form.customTruckType = els.customTruckType.value; renderPreview(); });
+      els.truckLength.addEventListener("input", function () { form.truckLength = els.truckLength.value; renderPreview(); });
       els.loadWeight.addEventListener("input", function () { form.loadWeight = els.loadWeight.value; renderPreview(); });
       els.commodity.addEventListener("input", function () { form.commodity = els.commodity.value; renderPreview(); });
       els.puDate.addEventListener("input", function () { form.puDate = els.puDate.value; renderPreview(); });
@@ -1900,6 +1952,7 @@
         renderPreview();
       });
       els.copyBtn.addEventListener("click", copyText);
+      els.copyImgBtn.addEventListener("click", copyTicketImage);
       els.pngBtn.addEventListener("click", downloadPng);
       els.saveBtn.addEventListener("click", saveLoad);
       els.clearBtn.addEventListener("click", function () {
